@@ -21,6 +21,15 @@
   const existingDialog = $('existing-dialog');
   const copyName = $('copy-name');
   const copyFeedback = $('copy-feedback');
+  const downloadApp = $('download-app');
+  // Keep the HTML download page as a fallback for unrecognized devices.
+  const userAgent = navigator.userAgent || '';
+  const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  if (/Android/i.test(userAgent)) {
+    downloadApp.href = 'https://sj.qq.com/appdetail/com.czai.myteachers?from_wxz=1';
+  } else if (/iPhone|iPad|iPod/i.test(userAgent) || isIPadOS) {
+    downloadApp.href = 'https://apps.apple.com/cn/app/myteachers/id6739733230';
+  }
   const config = window.MYTERS_API_CONFIG || {};
   // Partial API configuration is never treated as a demo.
   const demoMode = !config.sendCodeUrl && !config.claimUrl;
