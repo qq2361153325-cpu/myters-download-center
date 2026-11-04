@@ -2,6 +2,7 @@
  * Integration contract:
  * Set window.MYTERS_API_CONFIG before this script:
  *   { sendCodeUrl: '/api/member/send-code', claimUrl: '/api/member/claim' }
+ * When neither endpoint is configured, the page runs a local demo.
  * Both endpoints accept POST JSON. send-code receives { phone }; claim receives
  * { phone, code }. Success is { success: true }; an existing account is
  * { success: false, code: 'ALREADY_REGISTERED' }. Other failures may return
@@ -21,12 +22,17 @@
   const copyName = $('copy-name');
   const copyFeedback = $('copy-feedback');
   const config = window.MYTERS_API_CONFIG || {};
+  // Partial API configuration is never treated as a demo.
+  const demoMode = !config.sendCodeUrl && !config.claimUrl;
+  const demoCode = '123456';
   const validPhone = (value) => /^1[3-9]\d{9}$/.test(value);
   let registeredPhone = '';
   let phoneTouched = false;
   let busy = false;
   let seconds = 0;
   let timer;
+  let sentPhone = '';
+  let previousPhone = phone.value.trim();
 
   function setMessage(text = '') {
     message.textContent = text;
@@ -44,7 +50,10 @@
     phone.setAttribute('aria-invalid', String(!!phoneError.textContent));
     getCode.disabled = !validPhone(value) || registered || busy || seconds > 0;
     getCode.textContent = seconds > 0 ? `${seconds}s 后重新获取` : '获取验证码';
-    claim.disabled = !validPhone(value) || registered || !code.value.trim() || !agree.checked || busy;
+    const codeReady = demoMode
+      ? sentPhone === value && code.value.trim() === demoCode
+      : !!code.value.trim();
+    claim.disabled = !validPhone(value) || registered || !codeReady || !agree.checked || busy;
   }
 
   function openDialog(dialog) {
@@ -105,6 +114,13 @@
 
   phone.addEventListener('input', () => {
     phone.value = phone.value.replace(/\D/g, '').slice(0, 11);
+    if (phone.value !== previousPhone) {
+      previousPhone = phone.value;
+      sentPhone = '';
+      code.value = '';
+      clearInterval(timer);
+      seconds = 0;
+    }
     if (phone.value !== registeredPhone) registeredPhone = '';
     phoneTouched = false;
     setMessage('');
@@ -125,12 +141,14 @@
     setMessage('');
     refresh();
     try {
-      const result = await post(config.sendCodeUrl, { phone: value });
+      const result = demoMode ? { success: true } : await post(config.sendCodeUrl, { phone: value });
       if (phone.value.trim() !== value) return;
       if (result.code === 'ALREADY_REGISTERED') markRegistered(value);
       else {
+        sentPhone = value;
+        if (demoMode) code.value = demoCode;
         startCountdown();
-        setMessage('验证码已发送，请注意查收');
+        setMessage(demoMode ? '验证码已填写，请继续领取' : '验证码已发送，请注意查收');
       }
     } catch (error) {
       if (phone.value.trim() === value) setMessage(error.message);
@@ -149,7 +167,8 @@
     setMessage('');
     refresh();
     try {
-      const result = await post(config.claimUrl, { phone: value, code: verificationCode });
+      const result = demoMode ? { success: true } : await post(config.claimUrl, { phone: value, code: verificationCode });
+      if (phone.value.trim() !== value) return;
       if (result.code === 'ALREADY_REGISTERED') markRegistered(value);
       else openDialog(successDialog);
     } catch (error) {
