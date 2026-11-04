@@ -34,6 +34,7 @@
   // Partial API configuration is never treated as a demo.
   const demoMode = !config.sendCodeUrl && !config.claimUrl;
   const demoCode = '123456';
+  const demoRegisteredPhone = '13800138001';
   const validPhone = (value) => /^1[3-9]\d{9}$/.test(value);
   let registeredPhone = '';
   let phoneTouched = false;
@@ -70,9 +71,29 @@
     else dialog.setAttribute('open', '');
   }
 
+  function resetForm() {
+    clearInterval(timer);
+    seconds = 0;
+    registeredPhone = '';
+    sentPhone = '';
+    previousPhone = '';
+    phoneTouched = false;
+    busy = false;
+    phone.value = '';
+    code.value = '';
+    agree.checked = false;
+    copyFeedback.textContent = '';
+    setMessage('');
+    refresh();
+    window.scrollTo(0, 0);
+  }
+
   function closeDialog(dialog) {
     if (typeof dialog.close === 'function') dialog.close();
-    else dialog.removeAttribute('open');
+    else {
+      dialog.removeAttribute('open');
+      resetForm();
+    }
   }
 
   function markRegistered(value) {
@@ -150,7 +171,9 @@
     setMessage('');
     refresh();
     try {
-      const result = demoMode ? { success: true } : await post(config.sendCodeUrl, { phone: value });
+      const result = demoMode
+        ? (value === demoRegisteredPhone ? { success: false, code: 'ALREADY_REGISTERED' } : { success: true })
+        : await post(config.sendCodeUrl, { phone: value });
       if (phone.value.trim() !== value) return;
       if (result.code === 'ALREADY_REGISTERED') markRegistered(value);
       else {
@@ -198,6 +221,13 @@
     });
   });
   [successDialog, existingDialog].forEach((dialog) => {
+    dialog.addEventListener('close', resetForm);
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && typeof dialog.close !== 'function') {
+        event.preventDefault();
+        closeDialog(dialog);
+      }
+    });
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog) closeDialog(dialog);
     });
